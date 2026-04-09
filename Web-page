@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlowWatch Smart Leak Monitor</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080d14; --panel: #0d1520; --border: #1a2d44;
+    --cyan: #00e5ff; --orange: #ff6d00; --red: #ff1744;
+    --green: #00e676; --yellow: #ffd600; --text: #c8dff0; --dim: #4a6a8a;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); font-family:'Exo 2',sans-serif; color:var(--text); min-height:100vh; overflow-x:hidden; }
+  body::before {
+    content:''; position:fixed; inset:0; pointer-events:none;
+    background-image: linear-gradient(rgba(0,229,255,.025) 1px,transparent 1px),
+                      linear-gradient(90deg,rgba(0,229,255,.025) 1px,transparent 1px);
+    background-size:40px 40px;
+  }
+  body::after {
+    content:''; position:fixed; inset:0; pointer-events:none;
+    background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.04) 2px,rgba(0,0,0,.04) 4px);
+  }
+  .wrap { position:relative; z-index:1; max-width:1160px; margin:0 auto; padding:24px 20px; }
+
+  /* ── HEADER ── */
+  header { display:flex; align-items:center; justify-content:space-between; margin-bottom:32px; padding-bottom:20px; border-bottom:1px solid var(--border); flex-wrap:wrap; gap:14px; }
+  .logo { display:flex; align-items:center; gap:14px; }
+  .logo h1 { font-size:1.5rem; font-weight:800; letter-spacing:.08em; text-trax2nsform:uppercase; color:#fff; }
+  .logo h1 span { color:var(--cyan); }
+  .logo p { font-family:'Share Tech Mono',monospace; font-size:.62rem; color:var(--dim); letter-spacing:.15em; text-transform:uppercase; margin-top:2px; }
+  .header-right { display:flex; align-items:center; gap:18px; }
+  .live-dot { display:flex; align-items:center; gap:7px; font-family:'Share Tech Mono',monospace; font-size:.68rem; color:var(--green); letter-spacing:.12em; }
+  .live-dot::before { content:''; width:7px; height:7px; background:var(--green); border-radius:50%; box-shadow:0 0 8px var(--green); animation:blink-dot 1.5s ease-in-out infinite; }
+  @keyframes blink-dot { 0%,100%{opacity:1} 50%{opacity:.3} }
+  .clock { font-family:'Share Tech Mono',monospace; font-size:.68rem; color:var(--dim); }
+
+  /* ── GRID ── */
+  .grid-5 { display:grid; grid-template-columns:repeat(5,1fr); gap:16px; margin-bottom:20px; }
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
+  @media(max-width:900px) { .grid-5 { grid-template-columns:repeat(3,1fr); } }
+  @media(max-width:600px) { .grid-5 { grid-template-columns:1fr 1fr; } .grid-2 { grid-template-columns:1fr; } }
+
+  /* ── CARDS ── */
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px; position:relative; overflow:hidden; transition:border-color .3s, box-shadow .3s; }
+  .card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; }
+  .card.c-in::before    { background:var(--cyan);   box-shadow:0 0 16px rgba(0,229,255,.4); }
+  .card.c-out::before   { background:var(--orange); box-shadow:0 0 16px rgba(255,109,0,.4); }
+  .card.c-diff::before  { background:var(--yellow); }
+  .card.c-leak::before  { background:var(--red); }
+  .card.c-valve::before { background:var(--green); }
+
+  .card.c-leak.alert  { border-color:var(--red);  animation:leak-glow .8s ease-in-out infinite; }
+  .card.c-valve.shut  { border-color:var(--orange); box-shadow:0 0 20px rgba(255,109,0,.25); }
+
+  @keyframes leak-glow { 0%,100%{box-shadow:0 0 18px rgba(255,23,68,.25)} 50%{box-shadow:0 0 50px rgba(255,23,68,.65)} }
+
+  .card-label { display:flex; align-items:center; gap:8px; font-size:.62rem; font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:var(--dim); margin-bottom:14px; }
+  .dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+  .c-in .dot    { background:var(--cyan); box-shadow:0 0 6px var(--cyan); }
+  .c-out .dot   { background:var(--orange); box-shadow:0 0 6px var(--orange); }
+  .c-diff .dot  { background:var(--yellow); }
+  .c-leak .dot  { background:var(--red); }
+  .c-valve .dot { background:var(--green); }
+  .c-leak.alert .dot  { animation:blink-dot .5s step-end infinite; }
+
+  .card-val { font-family:'Share Tech Mono',monospace; font-size:2.4rem; line-height:1; margin-bottom:5px; transition:color .3s; }
+  .c-in .card-val    { color:var(--cyan); text-shadow:0 0 18px rgba(0,229,255,.3); }
+  .c-out .card-val   { color:var(--orange); text-shadow:0 0 18px rgba(255,109,0,.3); }
+  .c-diff .card-val  { color:var(--yellow); }
+  .c-leak .card-val  { color:var(--text); }
+  .c-valve .card-val { color:var(--green); }
+
+  .c-leak.alert .card-val   { color:var(--red);    text-shadow:0 0 24px rgba(255,23,68,.5); }
+  .c-valve.shut .card-val   { color:var(--orange); }
+
+  .card-unit { font-family:'Share Tech Mono',monospace; font-size:.6rem; color:var(--dim); letter-spacing:.14em; text-transform:uppercase; }
+
+  .badge { display:inline-flex; align-items:center; gap:5px; margin-top:10px; padding:3px 9px; border-radius:20px; font-family:'Share Tech Mono',monospace; font-size:.6rem; letter-spacing:.08em; text-transform:uppercase; font-weight:700; transition:all .3s; }
+  .badge.ok     { background:rgba(0,230,118,.1); color:var(--green); border:1px solid rgba(0,230,118,.3); }
+  .badge.danger { background:rgba(255,23,68,.13); color:var(--red);   border:1px solid rgba(255,23,68,.45); }
+  .badge.warn   { background:rgba(255,109,0,.12); color:var(--orange);border:1px solid rgba(255,109,0,.35); }
+
+  /* diff bar */
+  .diff-bar-wrap { margin-top:10px; }
+  .diff-bar-bg { background:rgba(255,255,255,.06); border-radius:4px; height:5px; overflow:hidden; }
+  .diff-bar-fill { height:100%; border-radius:4px; transition:width .5s ease, background .3s; background:var(--green); }
+
+  /* ── CHART ── */
+  .chart-panel { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:22px; margin-bottom:20px; }
+  .chart-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; flex-wrap:wrap; gap:10px; }
+  .chart-title { font-size:.65rem; font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:var(--dim); }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; }
+  .leg { display:flex; align-items:center; gap:6px; font-family:'Share Tech Mono',monospace; font-size:.62rem; color:var(--dim); }
+  .leg-line { width:16px; height:2px; border-radius:2px; }
+
+  /* ── CONFIG ── */
+  .config-panel { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:22px; margin-bottom:20px; }
+  .panel-title { font-size:.65rem; font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:var(--dim); margin-bottom:18px; }
+  .cfg-row { display:grid; grid-template-columns:1fr 160px 140px; gap:12px; align-items:end; }
+  @media(max-width:600px){ .cfg-row { grid-template-columns:1fr; } }
+  .field { display:flex; flex-direction:column; gap:5px; }
+  .field label { font-family:'Share Tech Mono',monospace; font-size:.6rem; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); }
+  .field input, .field select { background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:9px 12px; color:var(--text); font-family:'Share Tech Mono',monospace; font-size:.82rem; outline:none; transition:border-color .2s; width:100%; }
+  .field input:focus, .field select:focus { border-color:var(--cyan); }
+  .btn { padding:9px 18px; border-radius:6px; border:none; font-family:'Exo 2',sans-serif; font-size:.72rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; cursor:pointer; transition:all .2s; }
+  .btn-start { background:var(--cyan); color:var(--bg); }
+  .btn-start:hover { opacity:.85; }
+  .btn-reset { background:rgba(255,214,0,.12); color:var(--yellow); border:1px solid rgba(255,214,0,.35); }
+  .btn-reset:hover { background:rgba(255,214,0,.22); }
+  .btn-sim-ok  { background:rgba(0,229,255,.1); border:1px solid rgba(0,229,255,.3); color:var(--cyan); }
+  .btn-sim-lk  { background:rgba(255,23,68,.12); border:1px solid rgba(255,23,68,.35); color:var(--red); }
+  .btn-clear   { background:rgba(255,255,255,.05); border:1px solid var(--border); color:var(--dim); }
+  .sim-row { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
+  .api-info { background:rgba(0,229,255,.04); border:1px solid rgba(0,229,255,.12); border-radius:8px; padding:13px 15px; margin-top:14px; font-family:'Share Tech Mono',monospace; font-size:.7rem; color:var(--dim); line-height:1.9; }
+  .api-info strong { color:var(--cyan); }
+  code { background:rgba(0,229,255,.08); border:1px solid rgba(0,229,255,.18); border-radius:4px; padding:1px 7px; font-family:'Share Tech Mono',monospace; font-size:.78em; color:var(--cyan); word-break:break-all; }
+
+  /* ── LOG ── */
+  .log-panel { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:22px; }
+  .log-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+  .log-body { height:170px; overflow-y:auto; display:flex; flex-direction:column-reverse; gap:3px; }
+  .log-body::-webkit-scrollbar { width:3px; }
+  .log-body::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
+  .log-entry { font-family:'Share Tech Mono',monospace; font-size:.7rem; display:flex; gap:10px; padding:2px 0; border-bottom:1px solid rgba(255,255,255,.03); animation:fadeIn .3s ease; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(-3px)} to{opacity:1;transform:none} }
+  .lt { color:var(--dim); flex-shrink:0; }
+  .lm.info  { color:var(--cyan); }
+  .lm.warn  { color:var(--orange); }
+  .lm.alert { color:var(--red); font-weight:700; }
+  .lm.ok    { color:var(--green); }
+  .lm.valve { color:var(--yellow); }
+
+  /* ── TOAST ── */
+  #toasts { position:fixed; top:20px; right:20px; z-index:9999; display:flex; flex-direction:column; gap:10px; }
+  .toast { background:#130008; border:1px solid var(--red); border-radius:10px; padding:14px 18px; min-width:270px; box-shadow:0 0 30px rgba(255,23,68,.4); animation:slideIn .4s cubic-bezier(.22,1,.36,1); display:flex; gap:12px; align-items:flex-start; }
+  @keyframes slideIn { from{transform:translateX(130%);opacity:0} to{transform:none;opacity:1} }
+  .toast-icon { font-size:1.2rem; flex-shrink:0; }
+  .toast-title { font-weight:700; font-size:.82rem; color:var(--red); margin-bottom:2px; }
+  .toast-desc  { font-family:'Share Tech Mono',monospace; font-size:.68rem; color:var(--text); }
+  .toast-close { background:none; border:none; color:var(--dim); cursor:pointer; font-size:.95rem; margin-left:auto; padding:0; }
+</style>
+</head>
+<body>
+<div id="toasts"></div>
+<div class="wrap">
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo">
+      <div>
+        <h1>Flow<span>Watch</span> <span style="font-size:.9rem;color:var(--dim)">v2</span></h1>
+        <p>Smart Leak Detection · Auto Valve Shutoff</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="live-dot" id="liveInd">LIVE</div>
+      <div class="clock" id="clock">--:--:--</div>
+    </div>
+  </header>
+
+  <!-- 5 METRIC CARDS -->
+  <div class="grid-5">
+
+    <!-- Flow IN -->
+    <div class="card c-in">
+      <div class="card-label"><span class="dot"></span>Flow In</div>
+      <div class="card-val" id="vIn">--</div>
+      <div class="card-unit">Litres / min</div>
+    </div>
+
+    <!-- Flow OUT -->
+    <div class="card c-out">
+      <div class="card-label"><span class="dot"></span>Flow Out</div>
+      <div class="card-val" id="vOut">--</div>
+      <div class="card-unit">Litres / min</div>
+    </div>
+
+    <!-- Difference -->
+    <div class="card c-diff">
+      <div class="card-label"><span class="dot"></span>Difference</div>
+      <div class="card-val" id="vDiff">--</div>
+      <div class="card-unit">L/min loss</div>
+      <div class="diff-bar-wrap">
+        <div class="diff-bar-bg"><div class="diff-bar-fill" id="diffBar" style="width:0%"></div></div>
+      </div>
+    </div>
+
+    <!-- Leak Status -->
+    <div class="card c-leak" id="leakCard">
+      <div class="card-label"><span class="dot"></span>Leak Status</div>
+      <div class="card-val" id="vLeak">--</div>
+      <div class="card-unit">Detection</div>
+      <div class="badge ok" id="leakBadge">✔ Normal</div>
+    </div>
+
+    <!-- Valve -->
+    <div class="card c-valve" id="valveCard">
+      <div class="card-label"><span class="dot"></span>Valve</div>
+      <div class="card-val" id="vValve">--</div>
+      <div class="card-unit">Status</div>
+      <div class="badge ok" id="valveBadge">● Open</div>
+    </div>
+
+  </div>
+
+  <!-- CHART -->
+  <div class="chart-panel">
+    <div class="chart-header">
+      <div class="chart-title">⬡ Real-Time Flow History</div>
+      <div class="legend">
+        <div class="leg"><div class="leg-line" style="background:var(--cyan)"></div>Flow In</div>
+        <div class="leg"><div class="leg-line" style="background:var(--orange)"></div>Flow Out</div>
+        <div class="leg"><div class="leg-line" style="background:var(--yellow);"></div>Difference</div>
+        <div class="leg"><div class="leg-line" style="background:var(--red);background:repeating-linear-gradient(90deg,var(--red) 0 4px,transparent 4px 8px)"></div>Leak Alert</div>
+      </div>
+    </div>
+    <canvas id="chart" height="200"></canvas>
+  </div>
+
+  <!-- CONFIG -->
+  <div class="config-panel">
+    <div class="panel-title">⬡ Data Source</div>
+    <div class="cfg-row">
+      <div class="field">
+        <label>API Endpoint URL</label>
+        <input id="apiUrl" type="text" placeholder="http://192.168.x.x/api/flow-data" />
+      </div>
+      <div class="field">
+        <label>Poll Interval</label>
+        <select id="pollInt">
+          <option value="2000">2 seconds</option>
+          <option value="5000" selected>5 seconds</option>
+          <option value="10000">10 seconds</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Action</label>
+        <button class="btn btn-start" id="startBtn" onclick="togglePoll()">▶ Start</button>
+      </div>
+    </div>
+    <div class="api-info">
+      <strong>API response includes:</strong>
+      <code>{"flow_in":12.4,"flow_out":10.1,"flow_diff":2.3,"leak":1,"valve_open":0}</code><br>
+      <strong>Leak threshold:</strong> 2.0 L/min difference &nbsp;|&nbsp;
+      <strong>Valve auto-closes</strong> after 3 consecutive detections
+    </div>
+    <div style="height:1px;background:var(--border);margin:16px 0"></div>
+    <div class="panel-title">⬡ Simulate</div>
+    <div class="sim-row">
+      <button class="btn btn-sim-ok btn-sm"  onclick="simulate(false)" style="padding:7px 14px;font-size:.68rem">▶ Normal Flow</button>
+      <button class="btn btn-sim-lk btn-sm"  onclick="simulate(true)"  style="padding:7px 14px;font-size:.68rem">⚠ Inject Leak</button>
+      <button class="btn btn-reset btn-sm"   onclick="simulateReset()" style="padding:7px 14px;font-size:.68rem">↺ Reset Valve</button>
+      <button class="btn btn-clear btn-sm"   onclick="clearAll()"      style="padding:7px 14px;font-size:.68rem">✕ Clear</button>
+    </div>
+  </div>
+
+  <!-- LOG -->
+  <div class="log-panel">
+    <div class="log-header">
+      <div class="panel-title" style="margin:0">⬡ Event Log</div>
+      <button class="btn btn-clear" style="padding:5px 12px;font-size:.62rem" onclick="clearLog()">Clear</button>
+    </div>
+    <div class="log-body" id="logBody"></div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+// ── STATE ──────────────────────────────────────────────────
+let polling = false, pollTimer = null, simTimer = null;
+let lastLeakState = 0, notifPerm = false;
+const LEAK_THRESHOLD = 2.0;
+const MAX_PTS = 40;
+let labels=[], dIn=[], dOut=[], dDiff=[], dLeak=[];
+
+// ── CLOCK ──────────────────────────────────────────────────
+setInterval(() => { document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-GB'); }, 1000);
+
+// ── CHART ──────────────────────────────────────────────────
+const ctx = document.getElementById('chart').getContext('2d');
+const chart = new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels,
+    datasets: [
+      { label:'Flow In',    data:dIn,   borderColor:'#00e5ff', backgroundColor:'rgba(0,229,255,.05)', borderWidth:2, pointRadius:0, tension:.4, fill:true },
+      { label:'Flow Out',   data:dOut,  borderColor:'#ff6d00', backgroundColor:'rgba(255,109,0,.05)',  borderWidth:2, pointRadius:0, tension:.4, fill:true },
+      { label:'Difference', data:dDiff, borderColor:'#ffd600', backgroundColor:'rgba(255,214,0,.04)',  borderWidth:2, pointRadius:0, tension:.3, fill:false },
+      { label:'Leak Alert', data:dLeak, borderColor:'#ff1744', borderWidth:2, borderDash:[5,5], pointRadius:0, tension:0, fill:false }
+    ]
+  },
+  options: {
+    responsive:true, animation:{duration:300},
+    interaction:{intersect:false,mode:'index'},
+    plugins:{
+      legend:{display:false},
+      tooltip:{backgroundColor:'#0d1520',borderColor:'#1a2d44',borderWidth:1,
+               titleColor:'#4a6a8a',bodyColor:'#c8dff0',
+               titleFont:{family:'Share Tech Mono',size:10},bodyFont:{family:'Share Tech Mono',size:11}}
+    },
+    scales:{
+      x:{grid:{color:'rgba(255,255,255,.03)'},ticks:{color:'#4a6a8a',font:{family:'Share Tech Mono',size:9},maxTicksLimit:8}},
+      y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#4a6a8a',font:{family:'Share Tech Mono',size:9}},beginAtZero:true}
+    }
+  }
+});
+
+// ── LOG ────────────────────────────────────────────────────
+function log(msg, type='info') {
+  const b = document.getElementById('logBody');
+  const el = document.createElement('div');
+  el.className = 'log-entry';
+  el.innerHTML = `<span class="lt">[${new Date().toLocaleTimeString('en-GB')}]</span><span class="lm ${type}">${msg}</span>`;
+  b.prepend(el);
+  if (b.children.length > 120) b.lastChild.remove();
+}
+function clearLog() { document.getElementById('logBody').innerHTML = ''; }
+
+// ── TOAST ──────────────────────────────────────────────────
+function toast(title, desc) {
+  const c = document.getElementById('toasts');
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.innerHTML = `<div class="toast-icon">🚨</div><div><div class="toast-title">${title}</div><div class="toast-desc">${desc}</div></div><button class="toast-close" onclick="this.parentElement.remove()">✕</button>`;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 9000);
+}
+
+async function requestNotif() {
+  if ('Notification' in window) {
+    notifPerm = (await Notification.requestPermission()) === 'granted';
+  }
+}
+function pushNotif(title, body) {
+  if (notifPerm && document.hidden) new Notification(title, { body });
+}
+function beep() {
+  try {
+    const ac = new (window.AudioContext || window.webkitAudioContext)();
+    [0, 0.35, 0.7].forEach(t => {
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.connect(g); g.connect(ac.destination);
+      o.type = 'square'; o.frequency.value = 880; g.gain.value = 0.12;
+      o.start(ac.currentTime + t); o.stop(ac.currentTime + t + 0.18);
+    });
+  } catch(e) {}
+}
+
+// ── UPDATE UI ──────────────────────────────────────────────
+function updateUI(fi, fo, diff, leak, valveOpen) {
+  // Cards
+  document.getElementById('vIn').textContent    = parseFloat(fi).toFixed(2);
+  document.getElementById('vOut').textContent   = parseFloat(fo).toFixed(2);
+  document.getElementById('vDiff').textContent  = parseFloat(diff).toFixed(2);
+  document.getElementById('vLeak').textContent  = leak == 1 ? 'LEAK' : 'OK';
+  document.getElementById('vValve').textContent = valveOpen == 1 ? 'OPEN' : 'SHUT';
+
+  // Diff bar (max visual at 5 L/min)
+  const pct = Math.min((parseFloat(diff) / 5.0) * 100, 100);
+  const bar = document.getElementById('diffBar');
+  bar.style.width = pct + '%';
+  bar.style.background = parseFloat(diff) >= LEAK_THRESHOLD ? 'var(--red)' : parseFloat(diff) > 1.0 ? 'var(--yellow)' : 'var(--green)';
+
+  // Leak card
+  const lc = document.getElementById('leakCard');
+  const lb = document.getElementById('leakBadge');
+  if (leak == 1) {
+    lc.classList.add('alert');
+    lb.className = 'badge danger'; lb.textContent = '⚠ LEAK DETECTED';
+    if (lastLeakState !== 1) {
+      toast('⚠ Leak Detected!', `Diff: ${parseFloat(diff).toFixed(2)} L/min | Valve auto-closed`);
+      pushNotif('⚠ Leak Detected!', `Flow difference: ${parseFloat(diff).toFixed(2)} L/min`);
+      log(`LEAK DETECTED — diff:${parseFloat(diff).toFixed(2)} L/min | in:${parseFloat(fi).toFixed(2)} | out:${parseFloat(fo).toFixed(2)}`, 'alert');
+      beep();
+    }
+  } else {
+    lc.classList.remove('alert');
+    lb.className = 'badge ok'; lb.textContent = '✔ Normal';
+    if (lastLeakState === 1) log('Leak cleared — system normal', 'ok');
+  }
+  lastLeakState = parseInt(leak);
+
+  // Valve card
+  const vc = document.getElementById('valveCard');
+  const vb = document.getElementById('valveBadge');
+  if (valveOpen == 1) {
+    vc.classList.remove('shut');
+    vb.className = 'badge ok';   vb.textContent = '● Open';
+  } else {
+    vc.classList.add('shut');
+    vb.className = 'badge warn'; vb.textContent = '⛔ Closed';
+    document.getElementById('vValve').style.color = 'var(--orange)';
+  }
+  if (valveOpen == 1) document.getElementById('vValve').style.color = 'var(--green)';
+
+  // Chart
+  const t = new Date().toLocaleTimeString('en-GB');
+  labels.push(t); dIn.push(parseFloat(fi)); dOut.push(parseFloat(fo)); dDiff.push(parseFloat(diff));
+  dLeak.push(leak == 1 ? Math.max(parseFloat(fi), parseFloat(fo)) * 1.1 : null);
+  if (labels.length > MAX_PTS) { labels.shift(); dIn.shift(); dOut.shift(); dDiff.shift(); dLeak.shift(); }
+  chart.update('none');
+}
+
+// ── POLLING ────────────────────────────────────────────────
+async function fetchData() {
+  const url = document.getElementById('apiUrl').value.trim();
+  if (!url) return;
+  try {
+    const res = await fetch(url, { cache:'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const j = await res.json();
+    const fi   = j.flow_in   ?? j.flowIn  ?? 0;
+    const fo   = j.flow_out  ?? j.flowOut ?? 0;
+    const diff = j.flow_diff ?? j.flowDiff ?? (fi - fo);
+    const lk   = j.leak      ?? 0;
+    const vl   = j.valve_open ?? j.valveOpen ?? 1;
+    updateUI(fi, fo, diff, lk, vl);
+    log(`in:${parseFloat(fi).toFixed(2)} out:${parseFloat(fo).toFixed(2)} diff:${parseFloat(diff).toFixed(2)} leak:${lk} valve:${vl==1?'open':'shut'}`, 'info');
+  } catch(e) {
+    log(`Fetch error: ${e.message}`, 'warn');
+  }
+}
+
+function togglePoll() {
+  polling ? stopPoll() : startPoll();
+}
+function startPoll() {
+  const url = document.getElementById('apiUrl').value.trim();
+  if (!url) { toast('No URL', 'Enter your ESP8266 API endpoint first.'); return; }
+  const iv = parseInt(document.getElementById('pollInt').value);
+  fetchData();
+  pollTimer = setInterval(fetchData, iv);
+  polling = true;
+  const btn = document.getElementById('startBtn');
+  btn.textContent = '■ Stop'; btn.style.background='rgba(255,23,68,.2)'; btn.style.color='var(--red)';
+  log(`Polling started → ${url} every ${iv/1000}s`, 'ok');
+  requestNotif();
+}
+function stopPoll() {
+  clearInterval(pollTimer); polling = false;
+  const btn = document.getElementById('startBtn');
+  btn.textContent = '▶ Start'; btn.style.background='var(--cyan)'; btn.style.color='var(--bg)';
+  log('Polling stopped', 'warn');
+}
+
+// ── SIMULATE ───────────────────────────────────────────────
+let simLeakActive = false, simValveOpen = true, simConfirm = 0;
+function simulate(withLeak) {
+  if (simTimer) clearInterval(simTimer);
+  const iv = parseInt(document.getElementById('pollInt').value) || 2000;
+  simLeakActive = false; simValveOpen = true; simConfirm = 0;
+
+  const tick = () => {
+    const fi = (40 + Math.random() * 8).toFixed(2);
+    let fo, diff;
+    if (withLeak && !simLeakActive) {
+      // Build up difference gradually
+      simConfirm++;
+      fo   = (parseFloat(fi) - 1.5 - simConfirm * 0.4 - Math.random()).toFixed(2);
+      diff = (parseFloat(fi) - parseFloat(fo)).toFixed(2);
+      if (simConfirm >= 3 && parseFloat(diff) >= 2.0) { simLeakActive = true; simValveOpen = false; }
+    } else if (simLeakActive) {
+      fo   = (parseFloat(fi) - 2.5 - Math.random() * 0.5).toFixed(2);
+      diff = (parseFloat(fi) - parseFloat(fo)).toFixed(2);
+    } else {
+      fo   = (parseFloat(fi) - 0.3 + Math.random() * 0.4).toFixed(2);
+      diff = Math.max(0, parseFloat(fi) - parseFloat(fo)).toFixed(2);
+    }
+    updateUI(fi, fo, diff, simLeakActive ? 1 : 0, simValveOpen ? 1 : 0);
+    log(`[SIM] in:${fi} out:${fo} diff:${diff} leak:${simLeakActive?1:0} valve:${simValveOpen?'open':'shut'}`,
+        simLeakActive ? 'alert' : 'info');
+  };
+  tick();
+  simTimer = setInterval(tick, iv);
+  if (withLeak) requestNotif();
+}
+
+function simulateReset() {
+  simLeakActive = false; simValveOpen = true; simConfirm = 0;
+  updateUI(0, 0, 0, 0, 1);
+  log('[SIM] Manual reset — valve reopened', 'valve');
+}
+
+function clearAll() {
+  if (simTimer) { clearInterval(simTimer); simTimer = null; }
+  stopPoll();
+  labels.length=0; dIn.length=0; dOut.length=0; dDiff.length=0; dLeak.length=0;
+  chart.update();
+  ['vIn','vOut','vDiff','vLeak','vValve'].forEach(id => document.getElementById(id).textContent = '--');
+  document.getElementById('leakCard').classList.remove('alert');
+  document.getElementById('valveCard').classList.remove('shut');
+  document.getElementById('leakBadge').className = 'badge ok'; document.getElementById('leakBadge').textContent = '✔ Normal';
+  document.getElementById('valveBadge').className = 'badge ok'; document.getElementById('valveBadge').textContent = '● Open';
+  document.getElementById('diffBar').style.width = '0%';
+  lastLeakState = 0; simLeakActive = false; simValveOpen = true;
+  log('Dashboard cleared', 'info');
+}
+
+log('FlowWatch v2 ready. Enter API URL or use simulator.', 'ok');
+</script> 
+</body>
+</html>
