@@ -2,8 +2,8 @@
 #include <ESP8266WebServer.h>
 
 // ── CONFIGURATION ──────────────────────────────────────────
-const char* WIFI_SSID     = "ESP"; 
-const char* WIFI_PASSWORD = "12345678"; 
+const char* WIFI_SSID     = "Your_WIFI_Name"; 
+const char* WIFI_PASSWORD = "Your_WIFI_Password"; 
 
 ESP8266WebServer server(80);
 
