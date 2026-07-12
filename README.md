@@ -41,8 +41,8 @@ Live dashboard updates every 2 seconds. Leak triggers browser notification + sou
 ##  Wiring
  
 ### Arduino Uno Pin Connections
- 
-
+| Arduino Pin | Connected To |
+|---|---|
 | `2` (Digital) | YF-S201 Flow IN signal (yellow wire) |
 | `3` (Digital) | YF-S201 Flow OUT signal (yellow wire) |
 | `TX` (pin 1) | NodeMCU RX via voltage divider |
