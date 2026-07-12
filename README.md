@@ -20,7 +20,6 @@ Live dashboard updates every 2 seconds. Leak triggers browser notification + sou
 - **Intelligent leak detection** — compares flow difference mathematically (no moisture sensor needed)
 - **False alarm prevention** — requires 3 consecutive seconds of sustained difference before triggering
 - **Automatic valve shutoff** — 12V solenoid valve closes instantly when leak is confirmed
-- **Manual reset** — physical button to reopen valve after fixing the leak
 - **WiFi dashboard** — live web UI accessible from any browser on the same network
 - **Multi-alert system** — in-app toast, browser push notification, and sound alert on leak
 - **No cloud needed** — ESP8266 hosts its own API endpoint on local WiFi
@@ -32,13 +31,10 @@ Live dashboard updates every 2 seconds. Leak triggers browser notification + sou
 | Component | Quantity | Notes |
 |---|---|---|
 | Arduino Uno (R3) | 1 | Any revision |
-| NodeMCU v1.0 (ESP8266) | 1 | Has onboard USB — easiest to flash |
+| NodeMCU v3.0 (ESP8266) | 1 | Has onboard USB — easiest to flash |
 | YF-S201 Flow Sensor | 2 | One inlet, one outlet |
-| 12V Normally Closed Solenoid Valve | 1 | 1/2 inch — search "12V NC solenoid valve" |
-| 12V DC Power Adapter | 1 | 1A rating sufficient |
 | 1kΩ Resistor | 1 | Voltage divider |
 | 2kΩ Resistor | 1 | Voltage divider (or 2× 1kΩ in series) |
-| Momentary Push Button | 1 | Manual valve reset |
 | Breadboard + Jumper Wires | — | Male-to-male and male-to-female |
 
  
@@ -49,15 +45,13 @@ Live dashboard updates every 2 seconds. Leak triggers browser notification + sou
 
 | `2` (Digital) | YF-S201 Flow IN signal (yellow wire) |
 | `3` (Digital) | YF-S201 Flow OUT signal (yellow wire) |
-| `5` (Digital) | Relay module IN |
-| `6` (Digital) | Reset button (other leg to GND) |
 | `TX` (pin 1) | NodeMCU RX via voltage divider |
 | `RX` (pin 0) | NodeMCU TX (direct) |
 | `5V` | Both YF-S201 VCC (red wires) + Relay VCC |
 | `3.3V` | NodeMCU 3V3 pin |
 | `GND` | All component GNDs (shared) |
  
-### NodeMCU v1.0 Pin Connections
+### NodeMCU v3.0 Pin Connections
  
 | NodeMCU Pin | Connected To |
 |---|---|
@@ -106,22 +100,8 @@ const char* WIFI_PASSWORD = "yourpassword";
  
 > **Note:** ESP8266 only supports 2.4GHz WiFi. If using Android hotspot, force it to 2.4GHz in hotspot settings.
  
-### Step 2 — Apply NC valve code changes
  
-Since the solenoid valve is Normally Closed, update these 3 lines in `arduino_flowwatch_v2.ino`:
- 
-```cpp
-// In setup() — change LOW to HIGH (NC valve needs power to stay open)
-digitalWrite(VALVE_PIN, HIGH);
- 
-// closeValve() function
-void closeValve() { digitalWrite(VALVE_PIN, LOW);  valveOpen = false; }
- 
-// openValve() function
-void openValve()  { digitalWrite(VALVE_PIN, HIGH); valveOpen = true;  }
-```
- 
-### Step 3 — Upload Arduino code
+### Step 2 — Upload Arduino code
  
 1. **Disconnect NodeMCU TX/RX wires** from Arduino pins 0 and 1
 2. Connect Arduino to laptop via USB
@@ -132,19 +112,19 @@ void openValve()  { digitalWrite(VALVE_PIN, HIGH); valveOpen = true;  }
    IN:0.00,OUT:0.00,LEAK:0,VALVE:1,DIFF:0.00
 ```
 6. Close Serial Monitor → reconnect NodeMCU TX/RX wires
-### Step 4 — Upload ESP8266 code
+### Step 3 — Upload ESP8266 code
  
 1. Connect **NodeMCU** to laptop via USB (Arduino disconnected)
 2. Arduino IDE → Tools → Board → **NodeMCU 1.0 (ESP-12E Module)**
 3. Tools → Upload Speed → **115200**
 4. Upload `esp8266_flowwatch.ino`
 5. LED blinks while connecting to WiFi, goes solid when connected
-### Step 5 — Find NodeMCU IP address
+### Step 4 — Find NodeMCU IP address
  
 - **Mobile hotspot:** Check connected devices list in your hotspot settings — look for "espressif"
 - **Home router:** Open router admin page → connected devices → find "ESP8266"
 - **Verify:** Open `http://<ESP_IP>/` in browser — status page should load with live readings
-### Step 6 — Open dashboard
+### Step 5 — Open dashboard
  
 1. Open `flow-monitor.html` in Chrome or Edge
 2. Enter API URL: `http://<ESP_IP>/api/flow-data`
@@ -162,7 +142,6 @@ Every 1 second:
   if flowDiff < 2.0  →  Normal, reset counter
   if flowDiff ≥ 2.0  →  Increment confirmation counter
   if counter ≥ 3     →  LEAK CONFIRMED
-                           → valve closes
                            → dashboard alerts fire
                            → browser notification sent
                            → sound alert plays
@@ -199,7 +178,6 @@ The NodeMCU hosts a JSON REST API on port 80.
 | `flow_out` | float | Outlet flow rate in L/min |
 | `flow_diff` | float | Difference (flow_in − flow_out) |
 | `leak` | int | 0 = normal, 1 = leak detected |
-| `valve_open` | int | 1 = valve open, 0 = valve closed |
 | `uptime_s` | int | ESP8266 uptime in seconds |
 | `has_data` | bool | False until first Arduino reading received |
 | `stale` | bool | True if no update received in 10+ seconds |
@@ -235,9 +213,7 @@ const unsigned long SEND_INTERVAL = 2000;  // How often to send data to ESP (ms)
 ### Power
 - Arduino powered by USB (any 5V phone charger or laptop)
 - NodeMCU powered from Arduino 3.3V pin — **do not connect NodeMCU USB and Arduino 3.3V simultaneously**
-- Solenoid valve powered by separate 12V adapter
-### Flyback diode
-Always install the 1N4007 diode directly across solenoid valve terminals. Without it, voltage spikes from the solenoid coil can damage the relay and Arduino over time.
+
  
 ### Network
 The device running the dashboard must be on the **same WiFi/hotspot** as the NodeMCU. The NodeMCU IP may change after power cycles — set a static DHCP lease in your router to fix it permanently.
@@ -251,7 +227,6 @@ The device running the dashboard must be on the **same WiFi/hotspot** as the Nod
 | Dashboard shows all zeros | Serial Monitor open | Close Serial Monitor — it conflicts with ESP communication |
 | Dashboard shows all zeros | Two power sources on NodeMCU | Remove USB from NodeMCU — power only from Arduino 3.3V |
 | Flow always reads 0.00 | Wrong interrupt pins | YF-S201 signal must go to pin **2** and pin **3** on Uno |
-| Valve stays closed on boot | NC code changes not applied | Apply the 3 changes in Step 2 of setup |
 | ESP not connecting to WiFi | Wrong credentials or 5GHz | Double-check SSID/password. Force Android hotspot to 2.4GHz |
 | ESP broadcasting own WiFi | Failed to join network | Same as above — ESP falls back to AP mode on failure |
 | Upload fails | NodeMCU TX/RX still connected | Disconnect pins 0 and 1 from NodeMCU before uploading |
