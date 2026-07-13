@@ -84,6 +84,19 @@ FlowWatch
 ├── flow-monitor.html         ← Open in browser for dashboard
 └── README.md
 ```
+
+## PCB Specifications
+ 
+- **Layers:** 2 (F.Cu / B.Cu)
+- **Thickness:** 1.6 mm
+- **Mounting:** 4x 2.5mm mounting holes
+- **Connectors:** 6x 3.5mm screw terminals (Degson DG250 series)
+- **Design tool:** KiCad
+
+## Files
+ 
+- `RealTimeWaterLeak.kicad_sch` — Schematic
+- `RealTimeWaterLeak.kicad_pcb` — PCB layout
  
 ---
  
